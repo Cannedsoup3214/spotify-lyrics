@@ -55,15 +55,25 @@ def _save_wt(data):
     os.replace(tmp, WT_SETTINGS)
 
 def _patch_profiles(data, path, opacity):
+    # Patch every profile in the list
     for p in data.get("profiles", {}).get("list", []):
-        if not p.get("hidden"):
-            if path:
-                p["backgroundImage"]            = path.replace("\\", "/")
-                p["backgroundImageOpacity"]     = opacity
-                p["backgroundImageStretchMode"] = "uniformToFill"
-            else:
-                for k in ("backgroundImage","backgroundImageOpacity","backgroundImageStretchMode"):
-                    p.pop(k, None)
+        if path:
+            p["backgroundImage"]            = path.replace("\\", "/")
+            p["backgroundImageOpacity"]     = opacity
+            p["backgroundImageStretchMode"] = "uniformToFill"
+        else:
+            for k in ("backgroundImage","backgroundImageOpacity","backgroundImageStretchMode"):
+                p.pop(k, None)
+    # Also patch the "defaults" section which covers ALL profiles including "Default"
+    defaults = data.get("profiles", {}).get("defaults", {})
+    if path:
+        defaults["backgroundImage"]            = path.replace("\\", "/")
+        defaults["backgroundImageOpacity"]     = opacity
+        defaults["backgroundImageStretchMode"] = "uniformToFill"
+    else:
+        for k in ("backgroundImage","backgroundImageOpacity","backgroundImageStretchMode"):
+            defaults.pop(k, None)
+    data.setdefault("profiles", {})["defaults"] = defaults
 
 def wt_set(path, opacity):
     if not WT_SETTINGS: return
