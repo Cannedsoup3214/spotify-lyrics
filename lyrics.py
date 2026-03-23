@@ -55,25 +55,29 @@ def _save_wt(data):
     os.replace(tmp, WT_SETTINGS)
 
 def _patch_profiles(data, path, opacity):
-    # Patch every profile in the list
+    # Patch the defaults section — covers the Default profile and all profiles
+    defaults = data.setdefault("profiles", {}).setdefault("defaults", {})
+    if path:
+        defaults["backgroundImage"]            = path.replace("\\", "/")
+        defaults["backgroundImageOpacity"]     = opacity
+        defaults["backgroundImageStretchMode"] = "uniformToFill"
+        defaults["useAcrylic"]                 = False   # acrylic overrides bg image
+    else:
+        for k in ("backgroundImage","backgroundImageOpacity","backgroundImageStretchMode"):
+            defaults.pop(k, None)
+        defaults["useAcrylic"] = True   # restore acrylic when art is off
+
+    # Also patch every profile in the list individually
     for p in data.get("profiles", {}).get("list", []):
         if path:
             p["backgroundImage"]            = path.replace("\\", "/")
             p["backgroundImageOpacity"]     = opacity
             p["backgroundImageStretchMode"] = "uniformToFill"
+            p["useAcrylic"]                 = False
         else:
             for k in ("backgroundImage","backgroundImageOpacity","backgroundImageStretchMode"):
                 p.pop(k, None)
-    # Also patch the "defaults" section which covers ALL profiles including "Default"
-    defaults = data.get("profiles", {}).get("defaults", {})
-    if path:
-        defaults["backgroundImage"]            = path.replace("\\", "/")
-        defaults["backgroundImageOpacity"]     = opacity
-        defaults["backgroundImageStretchMode"] = "uniformToFill"
-    else:
-        for k in ("backgroundImage","backgroundImageOpacity","backgroundImageStretchMode"):
-            defaults.pop(k, None)
-    data.setdefault("profiles", {})["defaults"] = defaults
+            p["useAcrylic"] = True
 
 def wt_set(path, opacity):
     if not WT_SETTINGS: return
@@ -82,7 +86,15 @@ def wt_set(path, opacity):
             data = _load_wt()
             _patch_profiles(data, path, opacity)
             _save_wt(data)
-        except Exception: pass
+        except Exception as e:
+            # Write error to a log file so we can see what went wrong
+            try:
+                with open(os.path.join(TEMP, "sp_wt_error.txt"), "w") as f:
+                    import traceback
+                    f.write(f"wt_set error: {e}\n")
+                    traceback.print_exc(file=f)
+            except Exception:
+                pass
 
 def wt_setup():
     global _original_wt
@@ -100,8 +112,6 @@ def wt_restore():
         try:
             _save_wt(copy.deepcopy(_original_wt))
         except Exception: pass
-
-# ── ART PROCESSING ─────────────────────────────────────────────────────────────
 def process_art(url: str, out_path: str) -> bool:
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
